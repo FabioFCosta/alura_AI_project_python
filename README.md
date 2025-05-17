@@ -1,0 +1,1 @@
+# alura_AI_project_python
