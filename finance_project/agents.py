@@ -7,22 +7,49 @@ from google.adk.sessions import InMemorySessionService
 from google.adk.tools import google_search
 from google.genai import types
 
-from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+import os.path
+import pickle
 
 
 def criar_evento_google_calendar(titulo, data_inicio, data_fim):
-    creds = Credentials.from_authorized_user_file('./credentials.json')
+    SCOPES = ['https://www.googleapis.com/auth/calendar']
+    creds = None
+    
+    if os.path.exists('token.pickle'):
+        with open('token.pickle', 'rb') as token:
+            creds = pickle.load(token)
+    
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        
+        with open('token.pickle', 'wb') as token:
+            pickle.dump(creds, token)
+    
     service = build('calendar', 'v3', credentials=creds)
-
-    evento = {
+    
+    event = {
         'summary': titulo,
-        'start': {'dateTime': data_inicio, 'timeZone': 'America/Sao_Paulo'},
-        'end': {'dateTime': data_fim, 'timeZone': 'America/Sao_Paulo'},
+        'start': {
+            'dateTime': data_inicio,
+            'timeZone': 'America/Sao_Paulo',
+        },
+        'end': {
+            'dateTime': data_fim,
+            'timeZone': 'America/Sao_Paulo',
+        },
     }
-
-    service.events().insert(calendarId='primary', body=evento).execute()
-
+    
+    event = service.events().insert(calendarId='primary', body=event).execute()
+    return event.get('htmlLink')
 
 load_dotenv()
 
