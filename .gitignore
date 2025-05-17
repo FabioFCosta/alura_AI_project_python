@@ -1,0 +1,13 @@
+# Ignore folders
+/class_1_streamlit/
+/class_2/
+/finance/
+/class_agents/
+
+# Ignore all .env files
+*.env
+
+# Ignore all _pycache_ folders
+*/__pycache__
+
+/prompt.txt
