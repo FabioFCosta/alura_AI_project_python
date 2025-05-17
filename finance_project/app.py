@@ -1,21 +1,54 @@
+import time
 import yfinance as yf
 import streamlit as st
 import matplotlib.pyplot as plt
 from streamlit_autorefresh import st_autorefresh
 from datetime import date
 
-# Auto-refresh every X seconds
+from agents import orquestrar_agentes
+from datetime import datetime
+
 refresh_interval = st.sidebar.slider(
-    "Intervalo de atualização (segundos)", 5, 3600, 60)
-st_autorefresh(interval=refresh_interval * 1000, key="refresh")
+    "Intervalo de atualização do preço (segundos)", 300, 3600, 600)
+
+# 🔁 Auto-refresh apenas da área de preço
+count = st_autorefresh(interval=refresh_interval * 1000, key="cotacao_refresh", limit=None)
+
+def gerar_relatorio(selected_option: str):
+    st.subheader("📋 Notícias importantes")
+
+    with st.spinner("Buscando as últimas notícias sobre o ativo..."):
+        try:
+            ticker_simples = selected_option.replace(".SA", "")  # Ex: PETR4
+            data_hoje = datetime.today().strftime("%d/%m/%Y")
+
+            resposta_agentes = orquestrar_agentes(ticker=ticker_simples,data_de_hoje=data_hoje)
+
+            st.markdown(resposta_agentes.get('resumo',''))
+
+            if resposta_agentes.get("relatorio"):
+                with st.expander("Ver relatório completo"):
+                    st.markdown(resposta_agentes.get("relatorio"))
+            
+            if resposta_agentes.get("resultados"):
+                with st.expander("Ver sobre últimos relatórios"):
+                    st.markdown(resposta_agentes.get("resultados"))
+           
+        except Exception as e:
+            st.error(f"Ocorreu um erro ao buscar as notícias ou gerar o relatório: {e}")
+            st.session_state.mostrar_relatorio = False
 
 # Title
 st.title("📊 Cotação em Tempo Quase Real + Histórico + Relatório")
 
-# Ticker selection
-tickers = ['PETR4', 'CMIG4', 'BBAS3', 'IVVB11']
+drive_tickers = []
+
+# Tickers selection
+default_tickers = ['PETR4', 'CMIG4', 'BBAS3', 'IVVB11']
+tickers = [ticker.upper()
+           for ticker in drive_tickers] if drive_tickers else default_tickers
 coins = ['BTC-USD']
-all_choices = tickers + coins
+all_choices = [f"{ticker}.SA" for ticker in tickers if ticker] + coins
 
 selected_option = st.sidebar.selectbox('Selecione o papel:', all_choices)
 
@@ -30,16 +63,19 @@ end_date = st.sidebar.date_input(
     "Data de fim:", value=date.today(), min_value=start_date, max_value=date.today()
 )
 
-# Cotação atual
+# Seção de cotação
 st.subheader(f"📈 Último preço de {selected_option}")
+price_container = st.empty()
+
 ticker = yf.Ticker(selected_option)
 latest = ticker.history(period='1d', interval='1m')
 
-if not latest.empty:
-    current_price = latest['Close'].iloc[-1]
-    st.metric(label="Preço atual", value=f"R$ {current_price:.2f}")
-else:
-    st.warning("Não foi possível obter a cotação em tempo quase real.")
+with price_container.container():
+    if not latest.empty:
+        current_price = latest['Close'].iloc[-1]
+        st.metric(label="Preço atual", value=f"R$ {current_price:.2f}")
+    else:
+        st.warning("Não foi possível obter a cotação em tempo quase real.")
 
 # Validação de datas
 if start_date >= end_date:
@@ -121,9 +157,21 @@ else:
         except Exception as e:
             st.error(f"Erro ao gerar relatório: {e}")
 
-        st.subheader("📋 Notícias importantes ")
-        
+        if 'mostrar_relatorio' not in st.session_state:
+            st.session_state.mostrar_relatorio = False
+
+        if st.button(f'Gerar Relatório para {selected_option}'):
+            st.session_state.mostrar_relatorio = True
+
+        if st.session_state.mostrar_relatorio:
+             gerar_relatorio(selected_option)
 
     else:
         st.info(
             f"Sem dados históricos para {selected_option} no período selecionado.")
+        
+
+    
+
+        
+
