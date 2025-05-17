@@ -11,3 +11,6 @@
 */__pycache__
 
 /prompt.txt
+
+# Ignore all credentials.json files
+*credentials.json
