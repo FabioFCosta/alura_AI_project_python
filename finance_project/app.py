@@ -67,27 +67,43 @@ def gerar_relatorio(selected_option: str):
         for idx, pag in enumerate(pagamentos):
             titulo = f"Pagamento de {pag.get('tipo', 'dividendo')}"
             data_inicio = pag.get("data_pagamento")
-            data_fim = data_inicio
-            st.write(
-                f"📌 {titulo} — {data_inicio} — Valor: {pag.get('valor', 'N/A')}")
+            if data_inicio and data_inicio != "N/A":
+                data_fim = data_inicio
+                st.write(
+                    f"📌 {titulo} — {data_inicio} — Valor: {pag.get('valor', 'N/A')}")
 
-            if st.button(f"📅 Add ao Google Calendar", key=f"cal_btn_{idx}"):
-                try:
-                    criar_evento_google_calendar(
-                        titulo=titulo,
-                        data_inicio=f"{data_inicio}T09:00:00",
-                        data_fim=f"{data_fim}T10:00:00",
-                    )
-                    st.success("✅ Evento adicionado ao calendário!")
-                except Exception as e:
-                    st.error(f"Erro ao adicionar: {e}")
+                if st.button(f"📅 Add ao Google Calendar", key=f"cal_btn_{idx}"):
+                    try:
+                        criar_evento_google_calendar(
+                            titulo=titulo,
+                            data_inicio=f"{data_inicio}T09:00:00",
+                            data_fim=f"{data_fim}T10:00:00",
+                        )
+                        st.success("✅ Evento adicionado ao calendário!")
+                    except Exception as e:
+                        st.error(f"Erro ao adicionar: {e}")    
 
     resultados = resumo.get("resultados_divulgados", [])
     if resultados:
-        st.markdown("### 📊 Resultados divulgados")
-        for res in resultados:
-            st.write(
-                f"📌 Resultado {res.get('referente_a')} em {res.get('data', 'N/A')}, Lucro Líquido: {res.get('lucro_liquido', 'N/A')}")
+        st.markdown("### 📊 Resultados divulgados")        
+        for idx, res in enumerate(resultados):
+            titulo = f"Divulgação de resultado referente a {res.get('referente_a', '')}"
+            data_inicio = res.get("data")
+            if data_inicio and data_inicio != "N/A":
+                data_fim = data_inicio
+                st.write(
+                    f"📌 Resultado {res.get('referente_a')} em {res.get('data', 'N/A')}, Lucro Líquido: {res.get('lucro_liquido', 'N/A')}")
+
+                if st.button(f"📅 Add ao Google Calendar", key=f"cal_btt_{idx}"):
+                    try:
+                        criar_evento_google_calendar(
+                            titulo=titulo,
+                            data_inicio=f"{data_inicio}T09:00:00",
+                            data_fim=f"{data_fim}T10:00:00",
+                        )
+                        st.success("✅ Evento adicionado ao calendário!")
+                    except Exception as e:
+                        st.error(f"Erro ao adicionar: {e}")
 
     if resposta_agentes.get("relatorio"):
         st.subheader("📋 Relatórios")
@@ -104,32 +120,55 @@ def gerar_relatorio(selected_option: str):
 def main():
     st.title("📊 Cotação + Histórico + Relatório")
 
-    tickers = ['PETR4', 'CMIG4', 'BBAS3', 'IVVB11']
-    coins = ['BTC-USD']
-    all_choices = [f"{ticker}.SA" for ticker in tickers] + coins
-    selected_option = st.sidebar.selectbox('Selecione o papel:', all_choices)
+    if 'mostrar_relatorio' not in st.session_state:
+        st.session_state.mostrar_relatorio = False
+
+    selected_option = st.sidebar.text_input(
+        'Informe o código da ação:', placeholder="EX. PETR4")
 
     start_date = st.sidebar.date_input(
-        "Data de início:", value=date(2024, 1, 1), min_value=date(2000, 1, 1), max_value=date.today()
+        "Data de início:", value=date(2024, 1, 1),
+        min_value=date(2000, 1, 1),
+        max_value=date.today()
     )
     end_date = st.sidebar.date_input(
-        "Data de fim:", value=date.today(), min_value=start_date, max_value=date.today()
+        "Data de fim:", value=date.today(),
+        min_value=start_date,
+        max_value=date.today()
     )
 
-    st.subheader(f"📈 Último preço de {selected_option}")
-    ticker = yf.Ticker(selected_option)
-    latest = ticker.history(period='1d', interval='1m')
-    if not latest.empty:
-        current_price = latest['Close'].iloc[-1]
-        st.metric(label="Preço atual", value=f"R$ {current_price:.2f}")
-    else:
-        st.warning("Não foi possível obter a cotação em tempo real.")
-
-    if start_date >= end_date:
-        st.error("A data de início deve ser anterior à data de fim.")
+    if not selected_option:
+        st.markdown(
+            "Informe o código da ação na barra lateral para começar a avaliação")
         return
 
-    if selected_option in [f"{t}.SA" for t in tickers]:
+    try:
+        # Clean and format ticker symbol
+        ticker_code = selected_option.upper().replace(".SA", "")
+        ticker_symbol = f"{ticker_code}.SA"
+        ticker = yf.Ticker(ticker_symbol)
+
+        # Display current price
+        st.subheader(f"📈 Último preço de {ticker_code}")
+        latest = ticker.history(period='1d', interval='1m')
+        if not latest.empty:
+            current_price = latest['Close'].iloc[-1]
+            st.metric(label="Preço atual", value=f"R$ {current_price:.2f}")
+        else:
+            st.warning("Não foi possível obter a cotação em tempo real.")
+            return
+
+        if start_date >= end_date:
+            st.error("A data de início deve ser anterior à data de fim.")
+            return
+
+        hist = yf.download(ticker_symbol, start=start_date, end=end_date)
+
+        if hist.empty:
+            st.info(
+                f"Sem dados históricos para {ticker_code} no período selecionado.")
+            return
+
         st.subheader("Histórico do IBOVESPA")
         bvsp = yf.download('^BVSP', start=start_date, end=end_date)
         if not bvsp.empty:
@@ -140,11 +179,10 @@ def main():
             ax1.set_ylabel('Close')
             ax1.grid(True)
             st.pyplot(fig1)
+            plt.close(fig1)
 
-    st.subheader(f"📉 Histórico de {selected_option} + Indicadores Técnicos")
-    hist = yf.download(selected_option, start=start_date, end=end_date)
+        st.subheader(f"📉 Histórico de {ticker_code} + Indicadores Técnicos")
 
-    if not hist.empty:
         hist['SMA20'] = hist['Close'].rolling(window=20).mean()
         delta = hist['Close'].diff()
         gain = delta.where(delta > 0, 0)
@@ -157,10 +195,11 @@ def main():
         fig_price, ax_price = plt.subplots()
         ax_price.plot(hist['Close'], label='Close', color='blue')
         ax_price.plot(hist['SMA20'], label='SMA 20', color='orange')
-        ax_price.set_title(f'{selected_option} - Preço e Média Móvel')
+        ax_price.set_title(f'{ticker_code} - Preço e Média Móvel')
         ax_price.legend()
         ax_price.grid(True)
         st.pyplot(fig_price)
+        plt.close(fig_price)
 
         fig_rsi, ax_rsi = plt.subplots()
         ax_rsi.plot(hist['RSI'], label='RSI', color='purple')
@@ -170,29 +209,32 @@ def main():
         ax_rsi.legend()
         ax_rsi.grid(True)
         st.pyplot(fig_rsi)
+        plt.close(fig_rsi)
 
         try:
+            # Corrigindo o resumo de indicadores
+            ultimo_preco = float(hist['Close'].iloc[-1]) if not hist.empty else 0
+            sma20 = float(hist['SMA20'].iloc[-1]) if not hist.empty and 'SMA20' in hist else 0
+            rsi = float(hist['RSI'].iloc[-1]) if not hist.empty and 'RSI' in hist else 0
+            
             st.markdown(f"""
-                **Resumo de Indicadores - {selected_option}**
-                - 🔹 Último preço: R$ {hist['Close'].iloc[-1]:.2f}
-                - 🔸 Média Móvel 20 dias: R$ {hist['SMA20'].iloc[-1]:.2f}
-                - 🟣 RSI (14 dias): {hist['RSI'].iloc[-1]:.2f}
+                **Resumo de Indicadores - {ticker_code}**
+                - 🔹 Último preço: R$ {ultimo_preco:.2f}
+                - 🔸 Média Móvel 20 dias: R$ {sma20:.2f}
+                - 🟣 RSI (14 dias): {rsi:.2f}
             """)
         except Exception as e:
-            st.error(f"Erro ao gerar resumo de indicadores: {e}")
+            st.error(f"Erro ao gerar resumo de indicadores: {str(e)}")
 
-        if 'mostrar_relatorio' not in st.session_state:
-            st.session_state.mostrar_relatorio = False
-
-        if st.button(f'Gerar Relatório para {selected_option}'):
-            st.session_state.mostrar_relatorio = True
+        # Report section
+        if st.button(f'Gerar Relatório para {ticker_code}'):
+            st.session_state.mostrar_relatorio = not st.session_state.mostrar_relatorio
 
         if st.session_state.mostrar_relatorio:
-            gerar_relatorio(selected_option)
+            gerar_relatorio(ticker_symbol)
 
-    else:
-        st.info(
-            f"Sem dados históricos para {selected_option} no período selecionado.")
+    except Exception as e:
+        st.error(f"Erro ao processar a ação {selected_option}: {str(e)}")
 
 
 # Execução

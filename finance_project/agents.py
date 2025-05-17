@@ -91,6 +91,7 @@ def agente_buscador_financeiro(ativo: str, data_de_hoje: str, user_id: str, sess
             para encontrar as últimas notícias relevantes (até 30 dias) sobre o ativo informado.
             Foque em aspectos como: variações importantes, decisões corporativas, anúncios de dividendos, fusões, etc.
             Retorne um resumo dos eventos mais impactantes sobre esse ativo.
+            Inclua todas as datas completas (dia, mês e ano) que encontrar, para os eventos de dividendos, anúncio de resultados e fatos relevantes.
         """
     )
     entrada = f"Ativo: {ativo}\nData atual: {data_de_hoje}"
@@ -106,6 +107,8 @@ def agente_analista_fundamentalista(ativo: str, noticias: str, user_id: str, ses
             listar os fatores que mais impactaram o preço. Aponte se o ativo está em tendência de alta/baixa,
             se há riscos associados e pontos de atenção para investidores.
             Busque também por datas de eventos como divulgação de resultados, pagamento e valor de dividendos e evolução na dívida e no lucro.
+            Inclua todas as datas completas (dia, mês e ano) que encontrar, para os eventos de dividendos, anúncio de resultados e fatos relevantes.
+
         """,
         description="Agente que analisa fundamentos e notícias de ativos",
         tools=[google_search]
@@ -128,6 +131,7 @@ def agente_redator_financeiro(ativo: str, analise: str, user_id: str, session_id
             - Dados importantes como evolução do lucro, dividendos em valores, datas de pagamento de dividendos e de anuncio de resultados;
             - Conclusão e possíveis próximos passos;
             O texto deve ter tom informativo, evitando linguagem emocional, e ser voltado para investidores iniciantes.
+            Inclua todas as datas completas (dia, mês e ano) que encontrar, para os eventos de dividendos, anúncio de resultados e fatos relevantes.
         """,
         description="Agente redator de relatórios financeiros"
     )
@@ -146,6 +150,7 @@ def agente_revisor_financeiro(ativo: str, relatorio: str, user_id: str, session_
             - Gramática e ortografia.
             Se estiver tudo certo, retorne o relatório completo.
             Caso contrário, realize os ajustes necessários e retorne o novo relatório.
+            Inclua todas as datas completas (dia, mês e ano) que encontrar, para os eventos de dividendos, anúncio de resultados e fatos relevantes.
         """,
         description="Agente revisor técnico de relatórios financeiros"
     )
@@ -186,6 +191,7 @@ def agente_resumo(relatorio: str, user_id: str, session_id: str):
             - "outros_pontos": lista de strings com outras informações relevantes.
 
             Retorne **apenas o JSON**, sem texto adicional ou explicações.
+            Para as datas, só retorne o valor se tiver a informação completa (dia, mês e ano). Se não, retorne 'N/A' para esses campos.
         """,
         description="Agente que resume relatórios financeiros em formato estruturado com múltiplos eventos"
     )
