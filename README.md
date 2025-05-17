@@ -47,11 +47,6 @@ streamlit run app.py
 Acesse:
 Abra http://localhost:8501 no seu navegador
 
-📈 Exemplo de Uso
-python
-# Análise PETR4 com alerta de RSI
-"🔴 PETR4 com RSI 72.5 (Sobrecomprado) - Considere realizar lucros!"
-
 ✉️ Contato
 Fabio Freitas Costa - @fabinhofcosta - fabiof_costa1@hotmail.com
 
