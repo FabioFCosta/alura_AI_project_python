@@ -4,3 +4,9 @@ google-genai
 matplotlib
 dotenv
 google-adk
+pandas
+
+google-api-python-client
+google-auth-oauthlib
+google-auth
+google-generativeai
