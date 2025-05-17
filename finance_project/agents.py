@@ -7,9 +7,27 @@ from google.adk.sessions import InMemorySessionService
 from google.adk.tools import google_search
 from google.genai import types
 
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+
+
+def criar_evento_google_calendar(titulo, data_inicio, data_fim):
+    creds = Credentials.from_authorized_user_file('./credentials.json')
+    service = build('calendar', 'v3', credentials=creds)
+
+    evento = {
+        'summary': titulo,
+        'start': {'dateTime': data_inicio, 'timeZone': 'America/Sao_Paulo'},
+        'end': {'dateTime': data_fim, 'timeZone': 'America/Sao_Paulo'},
+    }
+
+    service.events().insert(calendarId='primary', body=evento).execute()
+
+
 load_dotenv()
 
 os.environ["GOOGLE_API_KEY"] = os.getenv("GOOGLE_API_KEY")
+
 
 def call_agent(agent: Agent, message_text: str, user_id: str, session_id: str) -> str:
     session_service = InMemorySessionService()
@@ -18,10 +36,11 @@ def call_agent(agent: Agent, message_text: str, user_id: str, session_id: str) -
         user_id=user_id,
         session_id=session_id
     )
-    runner = Runner(agent=agent, app_name=agent.name, session_service=session_service)
+    runner = Runner(agent=agent, app_name=agent.name,
+                    session_service=session_service)
     content = types.Content(role="user", parts=[types.Part(text=message_text)])
 
-    final_response = ""    
+    final_response = ""
     try:
         for event in runner.run(user_id=user_id, session_id=session_id, new_message=content):
             if event.is_final_response():
@@ -31,7 +50,8 @@ def call_agent(agent: Agent, message_text: str, user_id: str, session_id: str) -
                         final_response += "\n"
         return final_response
     except Exception as e:
-        return f"Erro ao processar o agente {agent.name}: {str(e)}" 
+        return f"Erro ao processar o agente {agent.name}: {str(e)}"
+
 
 def agente_buscador_financeiro(ativo: str, data_de_hoje: str, user_id: str, session_id: str):
     buscador = Agent(
@@ -49,6 +69,7 @@ def agente_buscador_financeiro(ativo: str, data_de_hoje: str, user_id: str, sess
     entrada = f"Ativo: {ativo}\nData atual: {data_de_hoje}"
     return call_agent(buscador, entrada, user_id, session_id)
 
+
 def agente_analista_fundamentalista(ativo: str, noticias: str, user_id: str, session_id: str):
     planejador = Agent(
         name="agente_analista_fundamentalista",
@@ -65,6 +86,7 @@ def agente_analista_fundamentalista(ativo: str, noticias: str, user_id: str, ses
 
     entrada = f"Ativo: {ativo}\nNotícias recentes: {noticias}"
     return call_agent(planejador, entrada, user_id, session_id)
+
 
 def agente_redator_financeiro(ativo: str, analise: str, user_id: str, session_id: str):
     redator = Agent(
@@ -85,6 +107,7 @@ def agente_redator_financeiro(ativo: str, analise: str, user_id: str, session_id
     entrada = f"Ativo: {ativo}\nAnálise: {analise}"
     return call_agent(redator, entrada, user_id, session_id)
 
+
 def agente_revisor_financeiro(ativo: str, relatorio: str, user_id: str, session_id: str):
     revisor = Agent(
         name="agente_revisor_financeiro",
@@ -102,33 +125,64 @@ def agente_revisor_financeiro(ativo: str, relatorio: str, user_id: str, session_
     entrada = f"Ativo: {ativo}\nRelatório: {relatorio}"
     return call_agent(revisor, entrada, user_id, session_id)
 
+
 def agente_resumo(relatorio: str, user_id: str, session_id: str):
     resumidor = Agent(
         name="agente_resumo",
         model="gemini-2.0-flash",
         instruction="""
-            Você é um especialista financeiro focado em resumir relatórios para investidores iniciantes com as informações mastigadas (incluindo os valores).
-            Leia o texto abaixo e retorne de 10 a 20 pontos mais relevantes resumidos em tópicos.
-            Dê preferencia a informações como Dividend Yield, data de relatório de resultados, dívidas, lucro e afins.
-            Sua resposta deve conter somente bullet point dos principais pontos}}.
+            Você é um especialista financeiro focado em extrair informações chave de relatórios financeiros,
+            voltadas para investidores iniciantes.
+
+            Leia o texto abaixo e retorne um JSON contendo os seguintes campos, se disponíveis:
+
+            - "dividend_yield": número ou string com o valor percentual do dividend yield;
+            - "resultados_divulgados": lista de objetos no formato:
+                [
+                    {
+                        "data": "YYYY-MM-DD",
+                        "referente_a": "Trimestre X de XXXX" ou outro identificador,
+                        "lucro_liquido": valor, se mencionado
+                    },
+                    ...
+                ];
+            - "pagamentos_dividendos": lista de objetos no formato:
+                [
+                    {
+                        "data_pagamento": "YYYY-MM-DD",
+                        "valor": "R$ X,XX",
+                        "tipo": "juros sobre capital" ou "dividendo" ou outro
+                    },
+                    ...
+                ];
+            - "divida_liquida": valor da dívida líquida;
+            - "outros_pontos": lista de strings com outras informações relevantes.
+
+            Retorne **apenas o JSON**, sem texto adicional ou explicações.
         """,
-        description="Agente revisor técnico de relatórios financeiros"
+        description="Agente que resume relatórios financeiros em formato estruturado com múltiplos eventos"
     )
     entrada = f"Relatório: {relatorio}"
+    
     return call_agent(resumidor, entrada, user_id, session_id)
+
 
 def orquestrar_agentes(ticker: str, data_de_hoje: str):
     user_id = f"user-{uuid.uuid4()}"
     session_id = f"session-{uuid.uuid4()}"
 
-    noticias = agente_buscador_financeiro(ticker, data_de_hoje, user_id, session_id)
-    analise = agente_analista_fundamentalista(ticker, noticias, user_id, session_id)
+    noticias = agente_buscador_financeiro(
+        ticker, data_de_hoje, user_id, session_id)
+    analise = agente_analista_fundamentalista(
+        ticker, noticias, user_id, session_id)
     relatorio = agente_redator_financeiro(ticker, analise, user_id, session_id)
     revisao = agente_revisor_financeiro(ticker, relatorio, user_id, session_id)
-    resumo = agente_resumo(revisao, user_id,session_id)
-    resultados = agente_buscador_relatorio(ticker, data_de_hoje, user_id, session_id)
+    resumo = agente_resumo(revisao, user_id, session_id)
+    resultados = agente_buscador_relatorio(
+        ticker, data_de_hoje, user_id, session_id)
 
     return {"relatorio": revisao, "resumo": resumo, "resultados": resultados}
+
 
 def agente_buscador_relatorio(ativo: str, data_de_hoje: str, user_id: str, session_id: str):
     buscador = Agent(
@@ -139,9 +193,12 @@ def agente_buscador_relatorio(ativo: str, data_de_hoje: str, user_id: str, sessi
         instruction="""
             Você é um assistente financeiro de pesquisa. Use a ferramenta google_search
             para encontrar os últimos relatórios de resultados do ativo informado.
-            Compare os resultados e traga as evoluções indicadas nesses relatórios bem como o link para baixar os relatórios.          
+            Compare os resultados e traga as evoluções indicadas nesses relatórios bem como o 
+            link do site da empresa onde encontra os relatórios.          
         """
     )
     entrada = f"Ativo: {ativo}\nData atual: {data_de_hoje}"
     return call_agent(buscador, entrada, user_id, session_id)
-                    
+
+
+
